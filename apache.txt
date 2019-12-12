@@ -1,0 +1,134 @@
+https://linuxconfig.org/how-to-set-up-apache-webserver-proxy-in-front-of-apache-tomcat-on-red-hat-linux
+
+# yum install httpd tomcat tomcat-webapps
+# systemctl enable tomcat
+# systemctl start tomcat
+# systemctl enable httpd
+# systemctl start httpd
+
+# apachectl -M | grep ajp
+ proxy_ajp_module (shared)
+
+vi /etc/httpd/conf.d/example_proxy.conf
+
+<VirtualHost ws.foobar.com:80>
+  ServerName ws.foobar.com
+
+  ProxyRequests Off
+  ProxyPass /examples ajp://localhost:8009/examples
+  ProxyPassReverse /examples ajp://localhost:8009/examples
+</VirtualHost>
+
+[root@manager conf.d]# vi /etc/hosts
+[root@manager conf.d]#
+[root@manager conf.d]#
+[root@manager conf.d]# apachectl configtest
+AH00558: httpd: Could not reliably determine the server's fully qualified domain name, using 192.168.29.10. Set the 'ServerName' directive globally to suppress this message
+Syntax OK
+
+
+[root@manager conf.d]# vi /usr/share/tomcat/conf/server.xml
+[root@manager conf.d]#
+
+
+<!-- Define an AJP 1.3 Connector on port 8009 -->
+    <Connector address="127.0.0.1" port="8009" protocol="AJP/1.3" redirectPort="8443" />
+
+[root@manager conf.d]# systemctl restart tomcat
+
+
+[root@manager conf.d]# ping ws.foobar.com
+PING manager (192.168.29.10) 56(84) bytes of data.
+64 bytes from manager (192.168.29.10): icmp_seq=1 ttl=64 time=0.034 ms
+^C
+[root@manager conf.d]# wget http://ws.foobar.com:80/examples
+--2019-12-11 23:43:58--  http://ws.foobar.com/examples
+Resolving ws.foobar.com (ws.foobar.com)... 192.168.29.10
+Connecting to ws.foobar.com (ws.foobar.com)|192.168.29.10|:80... connected.
+HTTP request sent, awaiting response... 302 Found
+Location: /examples/ [following]
+--2019-12-11 23:43:59--  http://ws.foobar.com/examples/
+Reusing existing connection to ws.foobar.com:80.
+HTTP request sent, awaiting response... 200 OK
+Length: 1253 (1.2K) [text/html]
+Saving to: ‘examples’
+
+100%[================================================================================>] 1,253       --.-K/s   in 0s
+
+2019-12-11 23:43:59 (170 MB/s) - ‘examples’ saved [1253/1253]
+
+[root@manager conf.d]# tail examples
+<h3>Apache Tomcat Examples</H3>
+<p></p>
+<ul>
+<li><a href="servlets">Servlets examples</a></li>
+<li><a href="jsp">JSP Examples</a></li>
+<li><a href="websocket/index.xhtml">WebSocket (JSR356) Examples</a></li>
+<li><a href="websocket-deprecated">WebSocket Examples using the deprecated
+    Apache Tomcat proprietary API</a></li>
+</ul>
+</body></html>
+[root@manager conf.d]# ls
+autoindex.conf  example_proxy.conf  examples  git.conf  README  ssl.conf  userdir.conf  welcome.conf
+[root@manager conf.d]# wget http://ws.foobar.com/examples
+--2019-12-11 23:45:02--  http://ws.foobar.com/examples
+Resolving ws.foobar.com (ws.foobar.com)... 192.168.29.10
+Connecting to ws.foobar.com (ws.foobar.com)|192.168.29.10|:80... connected.
+HTTP request sent, awaiting response... 302 Found
+Location: /examples/ [following]
+--2019-12-11 23:45:02--  http://ws.foobar.com/examples/
+Reusing existing connection to ws.foobar.com:80.
+HTTP request sent, awaiting response... 200 OK
+Length: 1253 (1.2K) [text/html]
+Saving to: ‘examples.1’
+
+100%[================================================================================>] 1,253       --.-K/s   in 0s
+
+2019-12-11 23:45:02 (137 MB/s) - ‘examples.1’ saved [1253/1253]
+
+[root@manager conf.d]# tail examples.1
+<h3>Apache Tomcat Examples</H3>
+<p></p>
+<ul>
+<li><a href="servlets">Servlets examples</a></li>
+<li><a href="jsp">JSP Examples</a></li>
+<li><a href="websocket/index.xhtml">WebSocket (JSR356) Examples</a></li>
+<li><a href="websocket-deprecated">WebSocket Examples using the deprecated
+    Apache Tomcat proprietary API</a></li>
+</ul>
+</body></html>
+[root@manager conf.d]# ip r
+default via 192.168.29.1 dev ens33 proto static metric 100
+172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1
+172.18.0.0/16 dev docker_gwbridge proto kernel scope link src 172.18.0.1
+192.168.29.0/24 dev ens33 proto kernel scope link src 192.168.29.10 metric 100
+[root@manager conf.d]# mkdir /var/www/html/static_content
+[root@manager conf.d]# cd /var/www
+[root@manager www]# ls
+cgi-bin  git  html
+[root@manager www]# cd html/
+[root@manager html]# ls
+static_content
+[root@manager html]# echo "<html><body>Static content</body></html>" > /var/www/html/static_content/static.html
+[root@manager html]#
+
+
+[root@manager html]# curl -v 192.168.29.10/static_content/static.html
+* About to connect() to 192.168.29.10 port 80 (#0)
+*   Trying 192.168.29.10...
+* Connected to 192.168.29.10 (192.168.29.10) port 80 (#0)
+> GET /static_content/static.html HTTP/1.1
+> User-Agent: curl/7.29.0
+> Host: 192.168.29.10
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Date: Thu, 12 Dec 2019 04:51:06 GMT
+< Server: Apache/2.4.6 (CentOS) OpenSSL/1.0.2k-fips
+< Last-Modified: Thu, 12 Dec 2019 04:50:51 GMT
+< ETag: "0-5997a7d5402f6"
+< Accept-Ranges: bytes
+< Content-Length: 0
+< Content-Type: text/html; charset=UTF-8
+<
+* Connection #0 to host 192.168.29.10 left intact
